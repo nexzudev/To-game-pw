@@ -2,21 +2,26 @@ import React, { useCallback, useMemo, useState } from 'react'
 import { Calendar } from 'antd'
 import type { Dayjs } from 'dayjs'
 import dayjs from 'dayjs'
+import relativeTime from 'dayjs/plugin/relativeTime'
+import { useGameStore, shortXP, type Priority } from '@/stores/gameStore'
 import type { Task } from '@/stores/gameStore'
-import { shortXP, useGameStore } from '@/stores/gameStore'
 
-type Props = {
+// Registra el plugin relativeTime (solo una vez en la app)
+dayjs.extend(relativeTime)
+
+type CalendarViewProps = {
   isOpen: boolean
   tasks: Task[]
   onClose: () => void
   skillsById: Record<string, { icon: string; name: string }>
 }
 
-export default function CalendarView({ isOpen, tasks, onClose, skillsById }: Props) {
+export default function CalendarView({ isOpen, tasks, onClose, skillsById }: CalendarViewProps) {
   if (!isOpen) return null
+
+  const completeTask = useGameStore(s => s.completeTask)
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [skillFilter, setSkillFilter] = useState<string>('all')
-  const completeTask = useGameStore(s => s.completeTask)
 
   const pendingByDate = useMemo(() => {
     const map = new Map<string, Task[]>()
@@ -29,134 +34,170 @@ export default function CalendarView({ isOpen, tasks, onClose, skillsById }: Pro
     return map
   }, [tasks])
 
-  const todayKey = useMemo(() => new Date().toISOString().slice(0, 10), [])
+  const todayKey = useMemo(() => dayjs().format('YYYY-MM-DD'), [])
 
   const tasksForSelected = useMemo(() => {
     if (!selectedDate) return []
     const all = pendingByDate.get(selectedDate) ?? []
-    return all.filter(t => skillFilter === 'all' ? true : t.skillId === skillFilter)
+    return all.filter(t => skillFilter === 'all' || t.skillId === skillFilter)
   }, [pendingByDate, selectedDate, skillFilter])
 
   const dateFullCellRender = useCallback((value: Dayjs) => {
-    const key = value.toDate().toISOString().slice(0, 10)
+    const key = value.format('YYYY-MM-DD')
     const dayTasks = pendingByDate.get(key) ?? []
-    const overdue = key < todayKey && dayTasks.some(t => !t.completed)
-    const counts: Record<'S'|'A'|'B'|'C', number> = { S:0,A:0,B:0,C:0 }
-    dayTasks.forEach(t => { counts[t.priority]++ })
-    const dots = (Object.entries(counts) as Array<[keyof typeof counts, number]>).filter(([,c]) => c>0)
-    const colorFor = (p: 'S'|'A'|'B'|'C') => p==='S' ? 'bg-[#ef4444]' : p==='A' ? 'bg-[#f59e0b]' : p==='B' ? 'bg-[#3b82f6]' : 'bg-[#6b7280]'
+    const pendingCount = dayTasks.length
+    const overdue = key < todayKey && pendingCount > 0
+    const counts: Record<Priority, number> = { S: 0, A: 0, B: 0, C: 0 }
+    dayTasks.forEach(t => counts[t.priority]++)
+
+    const dots = Object.entries(counts).filter(([, c]) => c > 0)
+
+    const colorFor = (p: Priority) => {
+      switch (p) {
+        case 'S': return 'bg-red-500 ring-1 ring-red-400/50'
+        case 'A': return 'bg-orange-500 ring-1 ring-orange-400/50'
+        case 'B': return 'bg-blue-500 ring-1 ring-blue-400/50'
+        default: return 'bg-gray-500 ring-1 ring-gray-400/50'
+      }
+    }
+
     return (
-      <div className={`rounded-md px-1 py-0.5 ${overdue ? 'bg-red-500/20' : ''}`} title={dayTasks.length ? `${dayTasks.length} misiones pendientes` : undefined}>
-        <div className="text-center">{value.date()}</div>
-        {dayTasks.length > 0 && (
-          <div className="mt-0.5 flex items-center justify-center gap-0.5">
-            {dots.slice(0,3).map(([p]) => (
-              <span key={p} className={`h-1.5 w-1.5 rounded-full ${colorFor(p)}`} />
+      <div
+        className={`relative h-10 w-10 flex flex-col items-center justify-center rounded-lg transition-all duration-200 ${
+          overdue ? 'bg-red-900/30' : dayTasks.length > 0 ? 'bg-indigo-900/20 hover:bg-indigo-800/40' : 'hover:bg-slate-800/30'
+        }`}
+        title={pendingCount ? `${pendingCount} misiones pendientes` : undefined}
+      >
+        <div className="text-base font-medium">{value.date()}</div>
+
+        {pendingCount > 0 && (
+          <div className="flex absolute bottom-1 gap-1">
+            {dots.slice(0, 3).map(([p]) => (
+              <span
+                key={p}
+                className={`w-2 h-2 rounded-full ${colorFor(p as Priority)}`}
+              />
             ))}
+            {dots.length > 3 && <span className="text-[10px] text-slate-400">+{dots.length - 3}</span>}
           </div>
         )}
       </div>
     )
   }, [pendingByDate, todayKey])
 
-  const tileContent = useCallback(({ date, view }: { date: Date; view: string }) => {
-    if (view !== 'month') return null
-    const key = date.toISOString().slice(0, 10)
-    const dayTasks = pendingByDate.get(key) ?? []
-    if (!dayTasks.length) return null
-    const count = dayTasks.length
-    const counts: Record<'S'|'A'|'B'|'C', number> = { S:0,A:0,B:0,C:0 }
-    dayTasks.forEach(t => { counts[t.priority]++ })
-    const dots = (Object.entries(counts) as Array<[keyof typeof counts, number]>).filter(([,c]) => c>0)
-    const colorFor = (p: 'S'|'A'|'B'|'C') => p==='S' ? 'bg-[#ef4444]' : p==='A' ? 'bg-[#f59e0b]' : p==='B' ? 'bg-[#3b82f6]' : 'bg-[#6b7280]'
-    return (
-      <div className="mt-1 flex items-center justify-center gap-0.5" title={`${count} misiones pendientes`}>
-        {dots.slice(0,3).map(([p]) => (
-          <span key={p} className={`h-1.5 w-1.5 rounded-full ${colorFor(p)} shadow-[0_0_6px_rgba(124,58,237,0.6)]`} />
-        ))}
-      </div>
-    )
-  }, [pendingByDate])
+  const priorityBadge = (priority: Priority) => {
+    switch (priority) {
+      case 'S': return 'bg-red-600/30 text-red-200 border-red-500/50'
+      case 'A': return 'bg-orange-600/30 text-orange-200 border-orange-500/50'
+      case 'B': return 'bg-blue-600/30 text-blue-200 border-blue-500/50'
+      default: return 'bg-gray-600/30 text-gray-200 border-gray-500/50'
+    }
+  }
 
   return (
     <div className="modal-backdrop">
-      <div className="glass w-full max-w-5xl p-6 space-y-4">
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <h2 className="text-2xl font-bold">Calendario</h2>
-          <div className="flex items-center gap-2">
+      <div className="p-6 space-y-6 w-full max-w-5xl rounded-2xl glass">
+        <div className="flex flex-col gap-4 justify-between items-start sm:flex-row sm:items-center">
+          <h2 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400 md:text-3xl">
+            Calendario de Misiones
+          </h2>
+
+          <div className="flex flex-wrap gap-3 items-center">
             <select
-              className="rounded-md bg-white/10 border border-white/10 px-3 py-2 text-slate-200"
+              className="px-4 py-2 text-sm rounded-lg border transition glass border-white/10 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/30"
               value={skillFilter}
               onChange={e => setSkillFilter(e.target.value)}
               title="Filtrar por skill"
             >
               <option value="all">Todas las skills</option>
               {Object.entries(skillsById).map(([id, s]) => (
-                <option key={id} value={id}>{s.icon} {s.name}</option>
+                <option key={id} value={id}>
+                  {s.icon} {s.name}
+                </option>
               ))}
             </select>
-            <button onClick={onClose} className="btn bg-white/10 hover:bg-white/20 text-slate-200">Cerrar</button>
+
+            <button
+              onClick={onClose}
+              className="px-5 py-2 text-sm text-red-200 rounded-lg transition btn bg-red-600/30 hover:bg-red-600/50"
+            >
+              Cerrar
+            </button>
           </div>
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div>
+
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          {/* Calendario */}
+          <div className="to-calendar-dark">
             <Calendar
               fullscreen={false}
-              onSelect={(d: Dayjs) => setSelectedDate(d.toDate().toISOString().slice(0,10))}
+              onSelect={(d: Dayjs) => setSelectedDate(d.format('YYYY-MM-DD'))}
               dateFullCellRender={dateFullCellRender}
-              headerRender={({ value, onChange }) => {
-                const year = value.year()
-                const month = value.month()
-                const prev = () => onChange(dayjs(value).month(month - 1))
-                const next = () => onChange(dayjs(value).month(month + 1))
-                return (
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="text-slate-300">{value.format('MMMM YYYY')}</div>
-                    <div className="flex items-center gap-2">
-                      <button className="btn bg-white/10 hover:bg-white/20" onClick={prev}>Mes -</button>
-                      <button className="btn bg-white/10 hover:bg-white/20" onClick={next}>Mes +</button>
-                    </div>
-                  </div>
-                )
-              }}
+              className="bg-transparent rounded-xl border shadow-glow border-white/10"
             />
-            <div className="mt-3 flex items-center gap-4 text-xs text-slate-400">
-              <div className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[#ef4444]" /> Prioridad S</div>
-              <div className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[#f59e0b]" /> Prioridad A</div>
-              <div className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[#3b82f6]" /> Prioridad B</div>
-              <div className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[#6b7280]" /> Prioridad C</div>
+
+            <div className="flex flex-wrap gap-4 mt-4 text-xs text-slate-400">
+              <div className="flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-full bg-red-500 ring-1 ring-red-400/50" />
+                Prioridad S
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-full bg-orange-500 ring-1 ring-orange-400/50" />
+                Prioridad A
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-full bg-blue-500 ring-1 ring-blue-400/50" />
+                Prioridad B
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-full bg-gray-500 ring-1 ring-gray-400/50" />
+                Prioridad C
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-full bg-red-900/30" />
+                Vencidas
+              </div>
             </div>
           </div>
-          <div className="rounded-lg bg-white/5 border border-white/10 p-4">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="font-semibold">Misiones del día {selectedDate ?? '—'}</h3>
-            </div>
+
+          {/* Panel de misiones del día (corregido) */}
+          <div className="glass p-5 rounded-xl border border-white/10 min-h-[300px] flex flex-col">
+            <h3 className="mb-4 text-xl font-bold text-indigo-300">
+              Misiones del día {selectedDate ? dayjs(selectedDate).format('DD [de] MMMM') : '—'}
+            </h3>
+
             {(!selectedDate || tasksForSelected.length === 0) ? (
-              <div className="text-sm text-slate-400">Selecciona un día con misiones pendientes</div>
+              <div className="flex flex-1 justify-center items-center text-center text-slate-400">
+                {selectedDate ? 'No hay misiones para este día' : 'Selecciona un día en el calendario'}
+              </div>
             ) : (
-              <ul className="space-y-2 max-h-80 overflow-auto pr-2">
+              <ul className="overflow-y-auto flex-1 pr-2 space-y-3">
                 {tasksForSelected.map(t => {
                   const s = skillsById[t.skillId]
-                  const badge = t.priority === 'S' ? 'bg-[#ef4444]/20 text-red-200' :
-                                t.priority === 'A' ? 'bg-[#f59e0b]/20 text-orange-200' :
-                                t.priority === 'B' ? 'bg-[#3b82f6]/20 text-blue-200' :
-                                'bg-[#6b7280]/20 text-slate-200'
-                  const borderCol = t.priority === 'S' ? 'border-[#ef4444]' :
-                                    t.priority === 'A' ? 'border-[#f59e0b]' :
-                                    t.priority === 'B' ? 'border-[#3b82f6]' :
-                                    'border-[#6b7280]'
                   return (
-                    <li key={t.id} className={`flex items-center justify-between rounded-lg bg-white/5 border p-3 ${borderCol}`}>
-                      <div className="flex items-center gap-3">
-                        <div className="text-xl">{s?.icon}</div>
-                        <div>
-                          <div className="font-medium">{t.title}</div>
-                          <div className="text-xs text-slate-400">
-                            Dif {t.difficulty} • <span className={`px-1.5 py-0.5 rounded ${badge}`}>P{t.priority}</span> • XP {shortXP(t.xpReward)}
+                    <li
+                      key={t.id}
+                      className={`p-4 rounded-lg border bg-white/5 transition hover:bg-white/10 ${priorityBadge(t.priority)}`}
+                    >
+                      <div className="flex flex-col gap-3 justify-between sm:flex-row sm:items-center">
+                        <div className="flex flex-1 gap-3 items-start">
+                          <div className="text-2xl">{s?.icon}</div>
+                          <div>
+                            <div className="text-lg font-medium">{t.title}</div>
+                            <div className="mt-1 text-sm text-slate-400">
+                              {s?.name} • Dif. {t.difficulty} • XP {shortXP(t.xpReward)}
+                              {t.dueDate && ` • ${dayjs(t.dueDate).fromNow()}`}
+                            </div>
                           </div>
                         </div>
+
+                        <button
+                          onClick={() => completeTask(t.id)}
+                          className="self-start px-5 py-2 text-sm btn-primary sm:self-center"
+                        >
+                          Completar
+                        </button>
                       </div>
-                      <button className="btn-primary" onClick={() => completeTask(t.id)}>Completar</button>
                     </li>
                   )
                 })}

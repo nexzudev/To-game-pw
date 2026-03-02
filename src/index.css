@@ -2,61 +2,274 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Variables globales para glow y colores (más completas y útiles) */
 :root {
   --glow-indigo: 79 70 229;
   --glow-purple: 124 58 237;
+  --glow-cyan: 34 211 238;
+  --glow-red: 239 68 68;
+  --glow-orange: 245 158 11;
+  --glow-blue: 59 130 246;
+  --glow-violet: 139 92 246;
+  --glow-gray: 107 114 128;
+  --bg-dark: 15 23 42; /* slate-950 */
+  --bg-darker: 0 0 0;
 }
 
+/* Selección de texto */
 * {
   @apply selection:bg-indigo-500/30 selection:text-indigo-200;
 }
 
+/* Reset y full height */
 html, body, #root {
   height: 100%;
+  margin: 0;
+  padding: 0;
 }
 
+/* Fondo global RPG (más inmersivo y sutil) */
+body {
+  @apply bg-gradient-to-br from-[#0f172a] via-[#1e293b] to-[#312e81] text-slate-200;
+  background-attachment: fixed;
+}
+
+/* Glassmorphism principal (más profundo y con blur fuerte) */
 .glass {
-  @apply bg-white/5 backdrop-blur-md border border-white/10 rounded-xl shadow-glow;
+  @apply bg-white/5 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-[0_10px_40px_rgba(31,38,135,0.35)];
 }
 
+/* Botones base */
 .btn {
-  @apply inline-flex items-center justify-center rounded-lg px-4 py-2 font-medium transition shadow-sm duration-150 ease-out disabled:opacity-50 disabled:cursor-not-allowed;
+  @apply inline-flex justify-center items-center px-5 py-3 font-medium rounded-lg transition-all duration-200 ease-out disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 active:scale-95;
 }
 
+/* Botones principales (glow más intenso al hover) */
 .btn-primary {
-  @apply btn bg-indigo-600 hover:bg-indigo-500 hover:shadow-glow active:scale-95;
+  @apply btn bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white shadow-lg hover:shadow-[0_0_25px_rgba(79,70,229,0.6)] active:scale-95;
 }
 
 .btn-secondary {
-  @apply btn bg-purple-600 hover:bg-purple-500 hover:shadow-glow active:scale-95;
+  @apply btn bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-lg hover:shadow-[0_0_25px_rgba(124,58,237,0.6)] active:scale-95;
 }
 
+.btn-outline {
+  @apply btn border border-indigo-500/50 text-indigo-300 hover:bg-indigo-500/15 hover:border-indigo-400 hover:shadow-[0_0_15px_rgba(79,70,229,0.3)];
+}
+
+.btn-danger {
+  @apply btn bg-red-600/80 hover:bg-red-600 text-white border border-red-500/50 hover:shadow-[0_0_20px_rgba(239,68,68,0.5)];
+}
+
+/* Modal backdrop (más inmersivo con blur fuerte) */
 .modal-backdrop {
-  @apply fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50;
+  @apply flex fixed inset-0 z-50 justify-center items-center p-4 backdrop-blur-lg bg-black/75 animate-fade-in;
 }
 
+/* Progress bar (gradiente más suave) */
 .progress {
-  @apply h-2 w-full rounded-full bg-white/10 overflow-hidden;
+  @apply overflow-hidden w-full h-2 rounded-full shadow-inner bg-white/10;
 }
 
-.progress > span {
-  @apply block h-full rounded-full bg-gradient-to-r from-indigo-500 to-purple-500;
+.progress-fill {
+  @apply block h-full bg-gradient-to-r from-cyan-500 via-indigo-500 to-purple-500 rounded-full transition-all duration-500;
 }
 
-/* react-calendar overrides for dark theme */
+/* Animaciones épicas */
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 15px rgba(var(--glow-indigo), 0.3); }
+  50% { box-shadow: 0 0 35px rgba(var(--glow-purple), 0.7); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes fade-out {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(-8px) scale(0.96); }
+}
+
+@keyframes epic-text {
+  0% { opacity: 0; transform: translateY(25px) scale(0.9); text-shadow: 0 0 0 rgba(34,211,238,0); }
+  50% { opacity: 1; transform: translateY(0) scale(1.05); text-shadow: 0 0 35px rgba(34,211,238,0.7); }
+  100% { opacity: 1; transform: translateY(0) scale(1); text-shadow: 0 0 20px rgba(34,211,238,0.4); }
+}
+
+.shadow-glow {
+  box-shadow: 0 0 25px rgba(var(--glow-indigo), 0.45);
+}
+
+.shadow-glow:hover {
+  animation: glow-pulse 2.5s infinite;
+}
+
+.animate-fade-in { animation: fade-in 400ms ease-out both; }
+.animate-fade-out { animation: fade-out 400ms ease-in both; }
+.animate-epic-text { animation: epic-text 1800ms ease-out both; }
+
+/* ────────────────────────────────────────────── */
+/* React Calendar dark theme (si lo usas en algún lugar) */
 .react-calendar {
-  @apply w-full bg-transparent text-slate-200;
-}
-.react-calendar__navigation button {
-  @apply text-slate-200 hover:bg-white/10 rounded-md px-2 py-1 border border-white/10 bg-white/5;
-}
-.react-calendar__tile {
-  @apply text-slate-300 hover:bg-white/10 rounded-md;
-}
-.react-calendar__tile--now {
-  @apply bg-indigo-500/20;
-}
-.react-calendar__tile--active {
-  @apply bg-indigo-600/40;
+  @apply w-full bg-transparent rounded-xl border-none text-slate-200 shadow-glow;
 }
 
+.react-calendar__navigation {
+  @apply flex justify-between mb-4;
+}
+
+.react-calendar__navigation button {
+  @apply px-3 py-2 rounded-md border transition text-slate-200 hover:bg-white/10 border-white/10 bg-white/5;
+}
+
+.react-calendar__month-view__weekdays {
+  @apply text-sm uppercase text-slate-400;
+}
+
+.react-calendar__tile {
+  @apply py-4 font-medium rounded-md transition text-slate-300 hover:bg-white/10;
+}
+
+.react-calendar__tile--now {
+  @apply font-bold text-indigo-300 bg-indigo-500/20;
+}
+
+.react-calendar__tile--active {
+  @apply font-bold text-white bg-gradient-to-r from-indigo-600 to-purple-600 shadow-md;
+}
+
+.react-calendar__tile--hasActive {
+  @apply bg-indigo-500/10;
+}
+
+/* ────────────────────────────────────────────── */
+/* Ant Design Calendar dark theme - versión ultra corregida y robusta */
+.to-calendar-dark {
+  /* Panel principal (fondo opaco y oscuro) */
+  .ant-picker-panel {
+    background-color: rgba(15, 23, 42, 0.96) !important;
+    border: 1px solid rgba(99, 102, 241, 0.3) !important;
+    border-radius: 16px !important;
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.7) !important;
+    color: #e5e7eb !important;
+  }
+
+  /* Header (mes/año y botones) */
+  .ant-picker-header {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+    padding: 16px !important;
+  }
+
+  .ant-picker-header-title,
+  .ant-picker-header-view {
+    color: #e5e7eb !important;
+    font-weight: 700 !important;
+    font-size: 1.1rem !important;
+  }
+
+  .ant-picker-header button {
+    color: #cbd5e1 !important;
+    background: rgba(255, 255, 255, 0.06) !important;
+    border: 1px solid rgba(255, 255, 255, 0.15) !important;
+    border-radius: 10px !important;
+    transition: all 0.2s !important;
+  }
+
+  .ant-picker-header button:hover {
+    background: rgba(99, 102, 241, 0.3) !important;
+    border-color: rgba(99, 102, 241, 0.6) !important;
+    color: white !important;
+  }
+
+  /* Días de la semana */
+  .ant-picker-content th {
+    color: #94a3b8 !important;
+    font-weight: 600 !important;
+    text-transform: uppercase !important;
+    font-size: 0.9rem !important;
+  }
+
+  /* Celdas normales */
+  .ant-picker-cell {
+    color: #cbd5e1 !important;
+  }
+
+  .ant-picker-cell-inner {
+    border-radius: 12px !important;
+    transition: all 0.25s ease !important;
+    padding: 8px !important;
+  }
+
+  .ant-picker-cell:hover .ant-picker-cell-inner {
+    background-color: rgba(99, 102, 241, 0.2) !important;
+    color: white !important;
+  }
+
+  /* Día actual */
+  .ant-picker-cell-today .ant-picker-cell-inner {
+    border: 2px solid #4f46e5 !important;
+    color: #a5b4fc !important;
+    font-weight: bold !important;
+  }
+
+  /* Día seleccionado */
+  .ant-picker-cell-selected .ant-picker-cell-inner,
+  .ant-picker-cell-range-start .ant-picker-cell-inner,
+  .ant-picker-cell-range-end .ant-picker-cell-inner {
+    background: linear-gradient(90deg, #4f46e5, #7c3aed) !important;
+    color: white !important;
+    box-shadow: 0 0 20px rgba(99, 102, 241, 0.6) !important;
+    font-weight: bold !important;
+  }
+
+  /* Días fuera del mes actual */
+  .ant-picker-cell-out-of-range .ant-picker-cell-inner {
+    color: rgba(203, 213, 225, 0.35) !important;
+  }
+
+  /* Footer (si aparece) */
+  .ant-picker-footer {
+    border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
+  }
+
+  .ant-picker-ok button {
+    background: linear-gradient(90deg, #4f46e5, #7c3aed) !important;
+    border-color: transparent !important;
+    color: white !important;
+  }
+}
+
+/* Forzar dark mode en todos los elementos de AntD */
+.to-calendar-dark .ant-picker,
+.to-calendar-dark .ant-picker-dropdown,
+.to-calendar-dark .ant-picker-content,
+.to-calendar-dark .ant-picker-panel-container {
+  background: transparent !important;
+}
+
+/* Extra: panel derecho de misiones (evita gris detrás) */
+.modal-backdrop .glass {
+  background: rgba(15, 23, 42, 0.92) !important;
+  backdrop-filter: blur(16px) !important;
+  border: 1px solid rgba(99, 102, 241, 0.3) !important;
+}
+
+/* Input date nativo dark mode (si usas <input type="date">) */
+input[type="date"] {
+  background: rgba(30, 41, 59, 0.8) !important;
+  color: #e5e7eb !important;
+  border: 1px solid rgba(99, 102, 241, 0.3) !important;
+  border-radius: 0.5rem !important;
+  padding: 0.75rem 1rem !important;
+  color-scheme: dark !important;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.8) brightness(1.2) !important;
+  opacity: 0.8 !important;
+}
+
+input[type="date"]::-webkit-datetime-edit {
+  color: #e5e7eb !important;
+}

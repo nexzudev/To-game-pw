@@ -6,17 +6,20 @@ type Props = {
   title?: string
   onClose: () => void
   onSubmit: (name: string) => void
+  onConfirmed?: () => void
 }
 
-export default function PlayerNameModal({ isOpen, initialName, title = 'Tu nombre', onClose, onSubmit }: Props) {
+export default function PlayerNameModal({ isOpen, initialName, title = 'Tu nombre', onClose, onSubmit, onConfirmed }: Props) {
   const [name, setName] = useState(initialName ?? '')
+  const [closing, setClosing] = useState(false)
   useEffect(() => {
     setName(initialName ?? '')
+    setClosing(false)
   }, [initialName, isOpen])
   if (!isOpen) return null
   return (
     <div className="modal-backdrop">
-      <div className="glass w-full max-w-md p-6 space-y-4">
+      <div className={`glass w-full max-w-md p-6 space-y-4 transition-all duration-300 ${closing ? 'animate-fade-out' : 'animate-fade-in'}`}>
         <h2 className="text-2xl font-bold">{title}</h2>
         <input
           autoFocus
@@ -30,7 +33,12 @@ export default function PlayerNameModal({ isOpen, initialName, title = 'Tu nombr
           <button
             className="btn-primary"
             onClick={() => {
-              if (name.trim()) onSubmit(name.trim())
+              if (!name.trim()) return
+              setClosing(true)
+              setTimeout(() => {
+                onSubmit(name.trim())
+                onConfirmed?.()
+              }, 350)
             }}
           >
             Guardar
@@ -40,4 +48,3 @@ export default function PlayerNameModal({ isOpen, initialName, title = 'Tu nombr
     </div>
   )
 }
-

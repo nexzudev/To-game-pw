@@ -50,6 +50,10 @@ type State = {
   setMusicEnabled: (enabled: boolean) => void
   setMusicVolume: (volume: number) => void
   setMusicTrackUrl: (url: string) => void
+  setSkillsForCurrent: (skills: Array<{ id?: string; name: string; icon: string }>) => void
+  getPlayerLevel: (totalXP: number) => number
+  getXPForNextLevel: (currentLevel: number) => number
+  getPlayerLevelProgress: (totalXP: number) => { level: number; xpInLevel: number; xpNeeded: number; percentage: number }
 }
 
 const defaultSkills = (): Record<string, Skill> => {
@@ -112,11 +116,50 @@ const levelUpSkill = (s: Skill, gained: number): Skill => {
   return { ...s, xp, level, xpToNext: next }
 }
 
+// Constantes para nivel general del jugador
+const XP_BASE_THRESHOLD = 1000
+const XP_GROWTH_FACTOR = 1.5 // cada nivel requiere 50% más que el anterior
+
+export const getPlayerLevel = (totalXP: number): number => {
+  let level = 1
+  let threshold = XP_BASE_THRESHOLD
+  let remaining = totalXP
+  while (remaining >= threshold) {
+    remaining -= threshold
+    level++
+    threshold = Math.round(threshold * XP_GROWTH_FACTOR)
+  }
+  return level
+}
+
+export const getXPForNextLevel = (currentLevel: number): number => {
+  let threshold = XP_BASE_THRESHOLD
+  for (let i = 1; i < currentLevel; i++) {
+    threshold = Math.round(threshold * XP_GROWTH_FACTOR)
+  }
+  return threshold
+}
+
+export const getPlayerLevelProgress = (totalXP: number) => {
+  const currentLevel = getPlayerLevel(totalXP)
+  let accumulated = 0
+  let threshold = XP_BASE_THRESHOLD
+  for (let i = 1; i < currentLevel; i++) {
+    accumulated += threshold
+    threshold = Math.round(threshold * XP_GROWTH_FACTOR)
+  }
+  const xpInLevel = totalXP - accumulated
+  const xpNeeded = threshold
+  const percentage = Math.min(100, Math.floor((xpInLevel / xpNeeded) * 100))
+  return { level: currentLevel, xpInLevel, xpNeeded, percentage }
+}
+
 export const useGameStore = create<State>()(
   persist(
     (set, get) => ({
       profiles: {},
       current: undefined,
+
       setCurrentProfile: (name) => {
         const p = get().profiles[name]
         if (p) {
@@ -137,6 +180,7 @@ export const useGameStore = create<State>()(
         }
         set(state => ({ profiles: { ...state.profiles, [name]: newProfile }, current: name }))
       },
+
       renameCurrent: (newName) => {
         const cur = get().current
         if (!cur) return
@@ -148,6 +192,7 @@ export const useGameStore = create<State>()(
         profiles[newName] = { ...profile, name: newName }
         set({ profiles, current: newName })
       },
+
       addTask: (input) => {
         const curName = get().current
         if (!curName) return
@@ -169,43 +214,70 @@ export const useGameStore = create<State>()(
           return { profiles: { ...state.profiles, [curName]: updated } }
         })
       },
+
       completeTask: (id) => {
         const curName = get().current
         if (!curName) return
-        const st = get()
-        const profile = st.profiles[curName]
+        const state = get()
+        const profile = state.profiles[curName]
         if (!profile) return
-        const idx = profile.tasks.findIndex(t => t.id === id)
-        if (idx === -1) return
-        const t = profile.tasks[idx]
-        if (t.completed) return
-        const skillGain = Math.round(t.xpReward * 0.7)
-        const playerGain = Math.round(t.xpReward * 0.3)
+
+        const taskIndex = profile.tasks.findIndex(t => t.id === id)
+        if (taskIndex === -1) return
+        const task = profile.tasks[taskIndex]
+        if (task.completed) return
+
+        // XP total ganada por la tarea
+        const xpEarned = task.xpReward
+
+        // 70% a la skill
+        const skillXP = Math.round(xpEarned * 0.7)
+        // 30% al jugador general
+        const playerXP = Math.round(xpEarned * 0.3)
+
+        // Actualizar skill
         const skills = { ...profile.skills }
-        const s = skills[t.skillId]
-        const prevPlayerLevel = playerLevel(profile.totalXP)
+        const skill = skills[task.skillId]
         let skillLevelUp = false
-        if (s) {
-          const beforeLevel = s.level
-          const after = levelUpSkill(s, skillGain)
-          if (after.level > beforeLevel) {
-            skillLevelUp = true
-          }
-          skills[t.skillId] = after
+        if (skill) {
+          const beforeLevel = skill.level
+          const updatedSkill = levelUpSkill(skill, skillXP)
+          if (updatedSkill.level > beforeLevel) skillLevelUp = true
+          skills[task.skillId] = updatedSkill
         }
-        const tasks = profile.tasks.map(tt => tt.id === id ? { ...tt, completed: true } : tt)
-        const newTotalXP = profile.totalXP + playerGain
-        const updated: Profile = { ...profile, skills, tasks, totalXP: newTotalXP }
-        set(state => ({ profiles: { ...state.profiles, [curName]: updated } }))
-        try {
-          window.dispatchEvent(new CustomEvent('taskCompleted'))
-          const newPlayerLevel = playerLevel(newTotalXP)
-          if (newPlayerLevel > prevPlayerLevel || skillLevelUp) {
-            window.dispatchEvent(new Event('playerLevelUp'))
-          }
-        } catch {
+
+        // Actualizar totalXP del jugador
+        const oldTotalXP = profile.totalXP
+        const newTotalXP = oldTotalXP + playerXP
+
+        // Actualizar tarea a completada
+        const updatedTasks = profile.tasks.map((t, i) =>
+          i === taskIndex ? { ...t, completed: true } : t
+        )
+
+        // Actualizar perfil
+        const updatedProfile: Profile = {
+          ...profile,
+          totalXP: newTotalXP,
+          skills,
+          tasks: updatedTasks,
+        }
+
+        set(state => ({
+          profiles: { ...state.profiles, [curName]: updatedProfile }
+        }))
+
+        // Disparar eventos
+        window.dispatchEvent(new CustomEvent('taskCompleted'))
+
+        // Detectar subida de nivel general o de skill
+        const oldPlayerLevel = getPlayerLevel(oldTotalXP)
+        const newPlayerLevel = getPlayerLevel(newTotalXP)
+        if (newPlayerLevel > oldPlayerLevel || skillLevelUp) {
+          window.dispatchEvent(new Event('playerLevelUp'))
         }
       },
+
       deleteTask: (id) => {
         const curName = get().current
         if (!curName) return
@@ -216,10 +288,12 @@ export const useGameStore = create<State>()(
           return { profiles: { ...state.profiles, [curName]: { ...p, tasks } } }
         })
       },
+
       exportProfile: (name) => {
         const p = get().profiles[name]
         return JSON.stringify(p, null, 2)
       },
+
       importProfile: (json) => {
         try {
           const parsed: Profile = JSON.parse(json)
@@ -231,9 +305,9 @@ export const useGameStore = create<State>()(
             profiles: { ...state.profiles, [parsed.name]: parsed },
             current: parsed.name
           }))
-        } catch {
-        }
+        } catch {}
       },
+
       setMusicEnabled: (enabled) => {
         const cur = get().current
         if (!cur) return
@@ -244,6 +318,7 @@ export const useGameStore = create<State>()(
           return { profiles: { ...state.profiles, [cur]: { ...p, settings } } }
         })
       },
+
       setMusicVolume: (volume) => {
         const cur = get().current
         if (!cur) return
@@ -254,6 +329,7 @@ export const useGameStore = create<State>()(
           return { profiles: { ...state.profiles, [cur]: { ...p, settings } } }
         })
       },
+
       setMusicTrackUrl: (url) => {
         const cur = get().current
         if (!cur) return
@@ -263,7 +339,35 @@ export const useGameStore = create<State>()(
           const settings = { ...(p.settings ?? { musicEnabled: false, musicVolume: 0.5 }), musicTrackUrl: url }
           return { profiles: { ...state.profiles, [cur]: { ...p, settings } } }
         })
-      }
+      },
+
+      setSkillsForCurrent: (skillsList) => {
+        const cur = get().current
+        if (!cur) return
+        set(state => {
+          const p = state.profiles[cur]
+          if (!p) return state
+          const rec: Record<string, Skill> = {}
+          for (const it of skillsList) {
+            const id = (it.id && it.id.trim()) ? it.id : (it.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || uuid())
+            rec[id] = {
+              id,
+              name: it.name,
+              icon: it.icon,
+              level: p.skills[id]?.level ?? 1,
+              xp: p.skills[id]?.xp ?? 0,
+              xpToNext: p.skills[id]?.xpToNext ?? 100
+            }
+          }
+          const updated: Profile = { ...p, skills: rec }
+          return { profiles: { ...state.profiles, [cur]: updated } }
+        })
+      },
+
+      // Funciones de nivel general
+      getPlayerLevel: (totalXP: number) => getPlayerLevel(totalXP),
+      getXPForNextLevel: (currentLevel: number) => getXPForNextLevel(currentLevel),
+      getPlayerLevelProgress: (totalXP: number) => getPlayerLevelProgress(totalXP),
     }),
     {
       name: 'to-game',
@@ -279,4 +383,3 @@ export const useCurrentProfile = () => {
 }
 
 export const playerLevel = (totalXP: number): number => 1 + Math.floor(totalXP / 1000)
-
